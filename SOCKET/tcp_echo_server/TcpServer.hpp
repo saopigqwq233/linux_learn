@@ -10,6 +10,8 @@
 #include <cstring>
 #include<netinet/in.h>
 #include<arpa/inet.h>
+#include<sys/wait.h>
+#include<pthread.h>
 
 const int default_backlog = 1;
 
@@ -27,7 +29,7 @@ public:
             errno,strerror(errno));
         }
         int opt = 1;
-	setsockopt(_listensock, SOL_SOCKET, SO_REUSEADDR|SO_REUSEPORT, &opt, sizeof(opt));
+	    setsockopt(_listensock, SOL_SOCKET, SO_REUSEADDR|SO_REUSEPORT, &opt, sizeof(opt));
         lg.LogMessage(Level::Debug,
         "create socket success, sockfd: %d\n",
         _listensock);
@@ -41,11 +43,11 @@ public:
         local.sin_addr.s_addr = htonl(INADDR_ANY);
 
         if(bind(_listensock,(struct sockaddr*)&local,sizeof(local))!=0){
-            lg.LogMessage(Fatal, "bind socket error, errno code: %d, error string: %s\n", errno, strerror(errno));
+            lg.LogMessage(Fatal, "bind socket error, errno code: %d, error string: %s", errno, strerror(errno));
             exit(Bind_Err);
         }
         lg.LogMessage(Debug, 
-        "bind socket success, sockfd: %d\n", 
+        "bind socket success, sockfd: %d", 
         _listensock);
 
 
@@ -57,13 +59,14 @@ public:
             exit(Listen_Err);
         }
         lg.LogMessage(Debug, 
-        "listen socket success, sockfd: %d\n",
+        "listen socket success, sockfd: %d",
         _listensock);
 
     }       
     void Start(){
         _isrunning = true;
-
+        signal(SIGCHLD, SIG_IGN); 
+// 在Linux环境中，如果对SIG_IGN进行忽略，子进程退出的时候，自动释放自己的资源
         while(_isrunning){
             //4.获取连接
             struct sockaddr_in peer;
@@ -78,15 +81,71 @@ public:
             }
                     //获取成功
             lg.LogMessage(Debug, 
-            "accept success, get n new sockfd: %d", 
+            "accept success, get new sockfd: %d", 
             sockfd);
 
             //提供服务
-            Service(sockfd);
-            close(sockfd);
+                //v1
+            // Service(sockfd);
+            // close(sockfd);
+        
+
+            //v2多进程
+            // pid_t id = fork();
+            // if(id<0){
+            //     close(sockfd);
+            //     continue;
+            // }
+            // else if(id==0){
+            //     //child
+            //     close(_listensock);
+            //     if(fork()>0)exit(0);
+            //     //孙子进程
+            //     Service(sockfd);
+            //     close(sockfd);
+            //     exit(0);
+
+            // }
+            // else{
+            //     close(sockfd);
+            //     pid_t rid = waitpid(id,nullptr,0);
+            //     if(rid==id){
+            //         //ddd
+            //     }
+            // }
+
+            //v3  多进程-信号
+            // pid_t id = fork();
+            // if(id<0){
+            //     close(sockfd);
+            //     continue;
+            // }
+            // else if(id==0){
+            //     //child
+            //     close(_listensock);
+            //     Service(sockfd);
+            //     close(sockfd);
+            //     exit(0);
+
+            // }
+            // else{
+            //     close(sockfd);
+            //     //父进程不等，直接退
+            //     // pid_t rid = waitpid(id,nullptr,0);
+            //     // if(rid==id){
+            //     //     //ddd
+            //     // }
+            // }
+
+            //v4 多线程
+            pthread_t tid;
+            pthread_create(&tid,nullptr,HandlerRequest,nullptr);
+            //主线程无需关闭sockfd，因为是共享的。
         }
     }
-
+    void* HandlerRequest(void*args){
+         
+    }
     //TCP连接的sockfd是全双工
     void Service(int sockfd){
         char buffer[1024];

@@ -7,3 +7,4 @@ enum{
     Bind_Err,
     Listen_Err
 };
+#define CONV(addr_ptr) ((struct sockaddr *)addr_ptr)
