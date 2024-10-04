@@ -14,7 +14,7 @@ void Usage(const std::string &process)
     std::cout << "Usage: " << process << " server_ip server_port" << std::endl;
 }
 
-bool visitserver(string& serverip, uint16_t serverport, int *cnt)
+bool visitserver(string &serverip, uint16_t serverport, int *cnt)
 {
     // 创建套接字
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -33,51 +33,45 @@ bool visitserver(string& serverip, uint16_t serverport, int *cnt)
     // p代表显示的，n标识网络中的
     inet_pton(AF_INET, serverip.c_str(), &server.sin_addr);
     // 连接成功自动bind
-    int n = connect(sockfd, (struct sockaddr *)&server, sizeof(sockaddr));
-    if (n < 0)
+    int f = connect(sockfd, (struct sockaddr *)&server, sizeof(sockaddr));
+    if (f < 0)
     {
         cerr << "connect error" << endl;
         // 连接失败
-        ret = false;
-        goto END;
+        return false;
     }
     *cnt = 0;
     // 并没有像server产生新的fd
-    while (true)
-    {
-        string inbuffer;
-        cout << "Please enter#";
-        getline(cin, inbuffer);
 
-        ssize_t n = write(sockfd, inbuffer.c_str(), inbuffer.size());
-        if (n > 0)
+    string inbuffer;
+    cout << "Please enter#";
+    getline(cin, inbuffer);
+
+    ssize_t n = write(sockfd, inbuffer.c_str(), inbuffer.size());
+    if (n > 0)
+    {
+        char buffer[1024];
+        ssize_t m = read(sockfd, buffer, sizeof(buffer) - 1);
+        if (m > 0)
         {
-            char buffer[1024];
-            ssize_t m = read(sockfd, buffer, sizeof(buffer) - 1);
-            if (m > 0)
-            {
-                buffer[m] = 0;
-                cout << "get a echo meesage->" << buffer << endl;
-            }
-            else if(m==0)
-            {
-                // cout<<"write 0"<<endl;
-                ret = false;
-                break;
-            }
-            else{
-                // cout<<"write error"<<endl;
-                ret = false;
-                break;
-            }
+            buffer[m] = 0;
+            cout << "get a echo meesage->" << buffer << endl;
         }
-        else 
+        else if (m == 0)
         {
+            // cout<<"write 0"<<endl;
             ret = false;
-            goto END;
+        }
+        else
+        {
+            // cout<<"write error"<<endl;
+            ret = false;
         }
     }
-END:
+    else
+    {
+        ret = false;
+    }
     close(sockfd);
     return ret;
 }
@@ -93,21 +87,23 @@ int main(int argc, char *argv[])
     uint16_t serverport = stoi(argv[2]);
 
     int cnt = 1;
-    while(cnt<=RetryCount){
-        int result = visitserver(serverip,serverport,&cnt);
-        if(result)
+    while (cnt <= RetryCount)
+    {
+        int result = visitserver(serverip, serverport, &cnt);
+        if (result)
         {
             break;
         }
-        else{
+        else
+        {
             sleep(1);
-            cout<<"server offline,retrying...,count:"<<cnt<<endl;
+            cout << "server offline,retrying...,count:" << cnt << endl;
             cnt++;
         }
     }
-    if(cnt>=RetryCount)
+    if (cnt >= RetryCount)
     {
-        cout<<"server offline"<<endl;
+        cout << "server offline" << endl;
     }
     return 0;
 }
